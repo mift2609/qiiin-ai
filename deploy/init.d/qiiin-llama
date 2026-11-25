@@ -1,0 +1,39 @@
+#!/bin/sh /etc/rc.common
+# QIIIN AI — llama.cpp inference service (procd)
+USE_PROCD=1
+START=95
+STOP=10
+
+CONF=/etc/qiiin-ai/qiiin-ai.conf
+
+start_service() {
+	[ -f "$CONF" ] || {
+		logger -t qiiin-llama "missing $CONF"
+		return 1
+	}
+	. "$CONF"
+
+	[ -x /opt/qiiin-ai/bin/llama-server ] || {
+		logger -t qiiin-llama "llama-server not found"
+		return 1
+	}
+	[ -f "$QIIIN_MODEL" ] || {
+		logger -t qiiin-llama "model not found: $QIIIN_MODEL"
+		return 1
+	}
+
+	procd_open_instance
+	procd_set_param command /opt/qiiin-ai/bin/llama-server \
+		-m "$QIIIN_MODEL" \
+		-c "$QIIIN_CTX" \
+		-t "$QIIIN_THREADS" \
+		-tb "$QIIIN_THREADS_BATCH" \
+		-np "$QIIIN_PARALLEL" \
+		--host "$QIIIN_HOST" \
+		--port "$QIIIN_PORT" \
+		$QIIIN_EXTRA
+	procd_set_param respawn 3600 5 5
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+}

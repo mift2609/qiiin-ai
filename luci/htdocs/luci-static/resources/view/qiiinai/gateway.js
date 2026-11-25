@@ -105,7 +105,7 @@ return view.extend({
 			urlLine,
 			note,
 			E('p', { 'class': 'cbi-section-descr' }, [
-				_('Membuka akses LAN hanya mengubah bind gateway menjadi 0.0.0.0:8080. Firewall tidak diubah; llama-server tetap 127.0.0.1:8081.')
+				_('Membuka akses LAN hanya mengubah bind gateway menjadi 192.168.44.1:8080 (USB), bukan 0.0.0.0. Firewall tidak diubah; llama-server tetap 127.0.0.1:8081.')
 			]),
 			E('button', { 'class': 'btn cbi-button', 'click': function(ev) { ev.preventDefault(); return refresh(); } }, [ _('Refresh') ])
 		]);

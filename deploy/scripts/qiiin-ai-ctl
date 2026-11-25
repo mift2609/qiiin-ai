@@ -56,7 +56,7 @@ case "${1:-}" in
 		"$LLAMA" disable
 		;;
 	expose-lan)
-		kv_set QIIIN_BIND '0.0.0.0:8080' "$ENV"
+		kv_set QIIIN_BIND '192.168.44.1:8080' "$ENV"
 		"$GW" restart
 		printf 'http://192.168.44.1:8080/\n'
 		;;

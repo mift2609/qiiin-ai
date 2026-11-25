@@ -4,7 +4,7 @@ App LuCI di `luci/` menyediakan menu **Services → QIIIN AI** untuk:
 
 - melihat status model, inference, gateway, bind, context/thread/slot, RAM, suhu;
 - start/stop/restart service, enable/disable boot;
-- **Buka akses LAN** → mengubah `QIIIN_BIND` menjadi `0.0.0.0:8080` lewat helper allowlisted;
+- **Buka akses LAN** → mengubah `QIIIN_BIND` menjadi `192.168.44.1:8080` (hanya USB LAN) lewat helper allowlisted;
 - **Buka Web AI** → membuka `http://192.168.44.1:8080/` di tab baru.
 
 `llama-server` tetap `127.0.0.1:8081` dan tidak pernah diekspos. Firewall tidak diubah;

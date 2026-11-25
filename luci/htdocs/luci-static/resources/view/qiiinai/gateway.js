@@ -89,7 +89,7 @@ return view.extend({
 			var tb = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'style': 'width:60px' });
 			var par = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'style': 'width:60px' });
 			var prov = E('select', { 'class': 'cbi-input-select' });
-			[ [ 'ddg', 'DuckDuckGo (tanpa key)' ], [ 'brave', 'Brave' ], [ 'tavily', 'Tavily' ] ].forEach(function(p) {
+			[ [ 'gnews', 'Google News RSS (berita)' ], [ 'ddg', 'DuckDuckGo (tanpa key)' ], [ 'brave', 'Brave' ], [ 'tavily', 'Tavily' ] ].forEach(function(p) {
 				prov.appendChild(E('option', { 'value': p[0] }, [ p[1] ]));
 			});
 			var key = E('input', { 'type': 'password', 'class': 'cbi-input-text', 'placeholder': 'kosongkan jika tidak dipakai' });
@@ -99,7 +99,7 @@ return view.extend({
 				var s = kv(r && r.stdout);
 				ctx.value = s.ctx || '4096'; th.value = s.threads || '6';
 				tb.value = s.threads_batch || '6'; par.value = s.parallel || '1';
-				prov.value = s.search_provider || 'ddg';
+				prov.value = s.search_provider || 'gnews';
 			});
 
 			var saveInf = function(ev) {

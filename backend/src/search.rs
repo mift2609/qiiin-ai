@@ -61,6 +61,26 @@ fn strip_tags(s: &str) -> String {
     clean(&out)
 }
 
+fn tag_value(chunk: &str, name: &str) -> Option<String> {
+    let open = format!("<{name}>");
+    let a = chunk.find(&open)? + open.len();
+    let close = format!("</{name}>");
+    let b = chunk[a..].find(&close)? + a;
+    Some(chunk[a..b].to_string())
+}
+
+fn parse_gnews(xml: &str, limit: usize) -> Vec<SearchItem> {
+    xml.split("<item>").skip(1).take(limit).filter_map(|chunk| {
+        let title = clean(&tag_value(chunk, "title")?);
+        let url = clean(&tag_value(chunk, "link")?);
+        let date = tag_value(chunk, "pubDate").map(|d| clean(&d));
+        let raw = tag_value(chunk, "description").unwrap_or_default()
+            .replace("<![CDATA[", "").replace("]]>", "");
+        let snippet = strip_tags(&clean(&raw));
+        Some(SearchItem { title, url, snippet, date, provider: "gnews".into() })
+    }).collect()
+}
+
 fn ddg_target(href: &str) -> String {
     let href = href.replace("&amp;", "&");
     let parsed = Url::parse(&href).ok().or_else(|| {
@@ -159,6 +179,25 @@ pub async fn run(
                 date: r.get("published_date").and_then(|x| x.as_str()).map(str::to_string),
                 provider: "tavily".into(),
             }).collect()
+        }
+        "gnews" => {
+            let mut u = Url::parse("https://news.google.com/rss/search").unwrap();
+            u.query_pairs_mut()
+                .append_pair("q", query)
+                .append_pair("hl", "id")
+                .append_pair("gl", "ID")
+                .append_pair("ceid", "ID:id");
+            let resp = client.get(u)
+                .header("Accept", "application/rss+xml, application/xml")
+                .timeout(cfg.timeout)
+                .send().await.map_err(|e| format!("gnews request gagal: {e}"))?;
+            if !resp.status().is_success() {
+                return Err(format!("gnews HTTP {}", resp.status().as_u16()));
+            }
+            let xml = resp.text().await.map_err(|e| e.to_string())?;
+            let items = parse_gnews(&xml, limit);
+            if items.is_empty() { return Err("gnews tidak mengembalikan hasil".into()); }
+            items
         }
         "ddg" => {
             let resp = client.get("https://lite.duckduckgo.com/lite/")

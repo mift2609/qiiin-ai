@@ -2,8 +2,9 @@
 
 Endpoint baru di gateway (semuanya butuh bearer token):
 
-- `POST /v1/search` — `{query, limit?}`. Provider `brave` atau `tavily` dari
-  `QIIIN_SEARCH_PROVIDER` + `QIIIN_SEARCH_API_KEY`. Tanpa key → 503, tidak
+- `POST /v1/search` — `{query, limit?}`. Provider `gnews` (Google News RSS,
+  tanpa key, untuk berita), `ddg` (DuckDuckGo Lite, tanpa key), `brave`, atau
+  `tavily`. Brave/Tavily butuh `QIIIN_SEARCH_API_KEY`. Tanpa key → 503, tidak
   mengklaim hasil. Cache TTL 10 menit di memory.
 - `POST /v1/web/read` — `{url}`. HTTP/HTTPS saja; blokir localhost, private,
   link-local, metadata, CGNAT, multicast; cek ulang IP setelah DNS; redirect

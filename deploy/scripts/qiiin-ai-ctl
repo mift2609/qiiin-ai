@@ -104,7 +104,7 @@ case "${1:-}" in
 		;;
 	set-search)
 		p="${2:-}"; k="${3:-}"
-		case "$p" in brave|tavily|ddg) ;; *) echo "provider harus brave|tavily|ddg" >&2; exit 1;; esac
+		case "$p" in brave|tavily|ddg|gnews) ;; *) echo "provider harus brave|tavily|ddg|gnews" >&2; exit 1;; esac
 		kv_set QIIIN_SEARCH_PROVIDER "$p" "$ENV" 0600
 		kv_set QIIIN_SEARCH_API_KEY "$k" "$ENV" 0600
 		"$GW" restart

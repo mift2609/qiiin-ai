@@ -5,7 +5,8 @@ const dot = $('#dot'), connText = $('#connText'), statusEl = $('#status'), laten
 let history = [];
 let base = ''; // same-origin by default; set QIIIN_API_BASE to override
 
-token.value = sessionStorage.getItem('qiiin_token') || '';
+token.value = sessionStorage.getItem('qiiin_token') || window.QIIIN_TOKEN || '';
+sessionStorage.setItem('qiiin_token', token.value);
 token.addEventListener('change', () => sessionStorage.setItem('qiiin_token', token.value));
 
 function add(role, text) {

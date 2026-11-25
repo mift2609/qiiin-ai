@@ -218,7 +218,15 @@ async fn static_ui(State(state): State<AppState>, uri: Uri) -> Response {
     }
     let full = std::path::Path::new(&state.www_dir).join(&rel);
     match std::fs::read(&full) {
-        Ok(bytes) => (StatusCode::OK, [(header::CONTENT_TYPE, content_type(&rel))], bytes).into_response(),
+        Ok(bytes) => {
+            if rel == "index.html" {
+                let html = String::from_utf8_lossy(&bytes)
+                    .replace("__QIIIN_TOKEN__", &state.token);
+                (StatusCode::OK, [(header::CONTENT_TYPE, content_type(&rel))], html.into_bytes()).into_response()
+            } else {
+                (StatusCode::OK, [(header::CONTENT_TYPE, content_type(&rel))], bytes).into_response()
+            }
+        }
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
 }

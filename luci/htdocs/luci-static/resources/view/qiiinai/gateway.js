@@ -71,13 +71,15 @@ return view.extend({
 		};
 
 		var openUI = function() {
+			var w = window.open('', '_blank');
 			return fs.exec(CTL, [ 'url' ]).then(function(r) {
 				var u = (r && r.stdout || '').trim();
 				if (!u || u.indexOf('127.0.0.1') === 0) {
+					if (w) w.close();
 					alert(_('Gateway masih private (127.0.0.1). Klik "Buka akses LAN" dulu, atau akses dari HP sendiri.'));
 					return;
 				}
-				window.open(u, '_blank');
+				if (w) w.location.href = u; else window.location.href = u;
 			});
 		};
 
@@ -167,9 +169,7 @@ return view.extend({
 				} }, [ _('Buka Web AI') ]),
 				E('button', { 'class': 'btn cbi-button cbi-button-action', 'click': function(ev) {
 					ev.preventDefault();
-					return fs.exec(CTL, [ 'url-ap' ]).then(function(r) {
-						window.open((r && r.stdout || '').trim(), '_blank');
-					});
+					window.open('http://192.168.45.1:8080/', '_blank');
 				} }, [ _('Buka Web AI (HP/AP)') ])
 			]),
 			urlLine,

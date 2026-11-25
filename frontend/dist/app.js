@@ -44,6 +44,26 @@ form.addEventListener('submit', async (ev) => {
   const btn = form.querySelector('button');
   btn.disabled = true;
   const started = performance.now();
+  let sources = [];
+  if (modeSel.value !== 'local') {
+    try {
+      const sr = await fetch(base + '/v1/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token.value },
+        body: JSON.stringify({ query: text, limit: 3 })
+      });
+      if (sr.ok) {
+        const sj = await sr.json();
+        sources = sj.results || [];
+      }
+    } catch (_) { sources = []; }
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const ctxLines = sources.length
+    ? sources.map((s, i) => `[${i + 1}] ${s.title || ''} | ${s.date || 'tanpa tanggal'} | ${s.url}\n${s.snippet || ''}`).join('\n')
+    : 'Tidak ada hasil pencarian.';
+  const sys = 'Tanggal hari ini: ' + today + '. Gunakan sumber berikut untuk fakta terkini. ' +
+    'Jika sumber tidak ada atau tidak relevan, katakan tidak tahu. Jangan mengarang tanggal atau berita.\n\nSUMBER:\n' + ctxLines;
   try {
     const r = await fetch(base + '/v1/chat/completions', {
       method: 'POST',
@@ -53,7 +73,7 @@ form.addEventListener('submit', async (ev) => {
       },
       body: JSON.stringify({
         model: '/opt/qiiin-ai/models/Qwen3-4B-Q4_K_M.gguf',
-        messages: history.slice(-12),
+        messages: [{ role: 'system', content: sys }, ...history.slice(-12)],
         stream: true,
         max_tokens: 512,
         chat_template_kwargs: { enable_thinking: think.checked }
@@ -86,6 +106,23 @@ form.addEventListener('submit', async (ev) => {
     }
     const answer = out.textContent.trim();
     if (answer) history.push({ role: 'assistant', content: answer });
+    if (sources.length) {
+      const box = document.createElement('div');
+      box.className = 'sources';
+      box.style.cssText = 'align-self:flex-start;max-width:86%;font-size:11px;color:var(--muted);margin:-4px 0 6px';
+      box.appendChild(document.createTextNode('Sumber: '));
+      sources.forEach((s, i) => {
+        const a = document.createElement('a');
+        a.href = s.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.style.cssText = 'color:var(--accent);margin-right:8px';
+        a.textContent = '[' + (i + 1) + '] ' + (s.title || s.url).slice(0, 48);
+        box.appendChild(a);
+      });
+      chat.appendChild(box);
+      chat.scrollTop = chat.scrollHeight;
+    }
     $('#mode').textContent = modeSel.value.toUpperCase();
     latencyEl.textContent = Math.round(performance.now() - started) + ' ms';
   } catch (e) {

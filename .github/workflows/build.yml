@@ -21,9 +21,9 @@ jobs:
         run: |
           set -eu
           mkdir -p "$HOME/toolchains"
-          curl -fsSL https://musl.cc/aarch64-linux-musl-cross.tgz | tar -xz -C "$HOME/toolchains"
-          echo "CROSS_CC=$HOME/toolchains/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc" >> "$GITHUB_ENV"
-          "$HOME/toolchains/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc" --version | head -1
+          curl -fsSL https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64/tarballs/aarch64--musl--stable-2024.05-1.tar.xz | tar -xJ -C "$HOME/toolchains"
+          echo "CROSS_CC=$HOME/toolchains/aarch64--musl--stable-2024.05-1/bin/aarch64-buildroot-linux-musl-gcc" >> "$GITHUB_ENV"
+          "$HOME/toolchains/aarch64--musl--stable-2024.05-1/bin/aarch64-buildroot-linux-musl-gcc" --version | head -1
 
       - name: Build static binaries
         run: |

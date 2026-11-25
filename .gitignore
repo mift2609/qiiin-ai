@@ -1,7 +1,0 @@
-inference/llama.cpp/
-inference/build-musl/
-backend/target/
-artifacts/
-*.gguf
-*.log
-.DS_Store

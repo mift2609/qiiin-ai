@@ -62,8 +62,10 @@ form.addEventListener('submit', async (ev) => {
   const ctxLines = sources.length
     ? sources.map((s, i) => `[${i + 1}] ${s.title || ''} | ${s.date || 'tanpa tanggal'} | ${s.url}\n${s.snippet || ''}`).join('\n')
     : 'Tidak ada hasil pencarian.';
-  const sys = 'Tanggal hari ini: ' + today + '. Gunakan sumber berikut untuk fakta terkini. ' +
-    'Jika sumber tidak ada atau tidak relevan, katakan tidak tahu. Jangan mengarang tanggal atau berita.\n\nSUMBER:\n' + ctxLines;
+  const sys = 'Kamu diberikan hasil pencarian web langsung dari tool. Jangan mengatakan tidak punya akses real-time. ' +
+    'Tanggal hari ini: ' + today + '. Jawab berdasarkan SUMBER di bawah. ' +
+    'Jika sumber tidak relevan atau kosong, katakan tidak tahu dan jangan pakai hafalan lama. ' +
+    'Jangan mengarang tanggal atau berita.\n\nSUMBER:\n' + ctxLines;
   try {
     const r = await fetch(base + '/v1/chat/completions', {
       method: 'POST',

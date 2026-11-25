@@ -50,6 +50,17 @@ fn clean(s: &str) -> String {
     t.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+fn strip_tags(s: &str) -> String {
+    let mut out = String::new();
+    let mut inside = false;
+    for ch in s.chars() {
+        if ch == '<' { inside = true; continue; }
+        if ch == '>' { inside = false; continue; }
+        if !inside { out.push(ch); }
+    }
+    clean(&out)
+}
+
 fn ddg_target(href: &str) -> String {
     let href = href.replace("&amp;", "&");
     let parsed = Url::parse(&href).ok().or_else(|| {
@@ -81,7 +92,9 @@ fn parse_ddg_lite(html: &str, limit: usize) -> Vec<SearchItem> {
         let title = clean(&tail[ts..te]);
         let snippet = tail[te..].find("result-snippet").and_then(|j| {
             let t = &tail[te + j..];
-            t.find('>').and_then(|a| t[a + 1..].find('<').map(|b| clean(&t[a + 1..a + 1 + b])))
+            t.find('>').and_then(|a| {
+                t[a + 1..].find("</td>").map(|b| strip_tags(&t[a + 1..a + 1 + b]))
+            })
         }).unwrap_or_default();
         out.push(SearchItem { title, url: ddg_target(href), snippet, date: None, provider: "ddg".into() });
         if out.len() >= limit { break; }

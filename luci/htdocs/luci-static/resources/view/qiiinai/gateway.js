@@ -32,7 +32,7 @@ return view.extend({
 		var self = this;
 		var host = E('div', { 'class': 'cbi-section' }, [ _('memuat…') ]);
 		var note = E('p', { 'class': 'cbi-section-descr' }, [
-			_('Gateway tetap memakai token bearer. Tombol "Buka Web AI" hanya membuka UI; token dimasukkan di halaman UI.')
+			_('Semua pengaturan ada di halaman ini. Web AI otomatis memakai token yang disimpan di sini.')
 		]);
 		var urlLine = E('p', {}, [ _('URL: —') ]);
 
@@ -47,6 +47,8 @@ return view.extend({
 						E('tr', { 'class': 'tr' }, [ E('td', { 'class': 'td' }, [ _('Gateway') ]), E('td', { 'class': 'td' }, [ badge(on(s.gateway) ? _('jalan') : _('mati'), on(s.gateway)) ]) ]),
 						E('tr', { 'class': 'tr' }, [ E('td', { 'class': 'td' }, [ _('Bind') ]), E('td', { 'class': 'td' }, [ s.bind || '-' ]) ]),
 						E('tr', { 'class': 'tr' }, [ E('td', { 'class': 'td' }, [ _('Context / thread / slot') ]), E('td', { 'class': 'td' }, [ (s.ctx || '-') + ' / ' + (s.threads || '-') + ' / ' + (s.parallel || '-') ]) ]),
+						E('tr', { 'class': 'tr' }, [ E('td', { 'class': 'td' }, [ _('Token') ]), E('td', { 'class': 'td' }, [ s.token_mask || '-' ]) ]),
+						E('tr', { 'class': 'tr' }, [ E('td', { 'class': 'td' }, [ _('Search provider') ]), E('td', { 'class': 'td' }, [ s.search_provider || '-' ]) ]),
 						E('tr', { 'class': 'tr' }, [ E('td', { 'class': 'td' }, [ _('RAM tersedia') ]), E('td', { 'class': 'td' }, [ Math.round((s.mem_available_kb || 0) / 1024) + ' MB' ]) ]),
 						E('tr', { 'class': 'tr' }, [ E('td', { 'class': 'td' }, [ _('Suhu SoC') ]), E('td', { 'class': 'td' }, [ (s.temp || '-') + ' °C' ]) ])
 					])
@@ -79,8 +81,70 @@ return view.extend({
 			});
 		};
 
+		var settings = function() {
+			var ctx = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'style': 'width:80px' });
+			var th = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'style': 'width:60px' });
+			var tb = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'style': 'width:60px' });
+			var par = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'style': 'width:60px' });
+			var prov = E('select', { 'class': 'cbi-input-select' });
+			[ [ 'ddg', 'DuckDuckGo (tanpa key)' ], [ 'brave', 'Brave' ], [ 'tavily', 'Tavily' ] ].forEach(function(p) {
+				prov.appendChild(E('option', { 'value': p[0] }, [ p[1] ]));
+			});
+			var key = E('input', { 'type': 'password', 'class': 'cbi-input-text', 'placeholder': 'kosongkan jika tidak dipakai' });
+			var tok = E('input', { 'type': 'password', 'class': 'cbi-input-text', 'placeholder': 'token baru (hex)' });
+
+			L.resolveDefault(fs.exec(CTL, [ 'status' ]), {}).then(function(r) {
+				var s = kv(r && r.stdout);
+				ctx.value = s.ctx || '4096'; th.value = s.threads || '6';
+				tb.value = s.threads_batch || '6'; par.value = s.parallel || '1';
+				prov.value = s.search_provider || 'ddg';
+			});
+
+			var saveInf = function(ev) {
+				ev.preventDefault();
+				return act([ 'set-inference', ctx.value, th.value, tb.value, par.value ]);
+			};
+			var saveSearch = function(ev) {
+				ev.preventDefault();
+				return act([ 'set-search', prov.value, key.value ]);
+			};
+			var saveToken = function(ev) {
+				ev.preventDefault();
+				if (!tok.value) return;
+				return fs.exec(CTL, [ 'set-token', tok.value ]).then(function() {
+					tok.value = '';
+					return refresh();
+				});
+			};
+
+			return E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, [ _('Setting inference') ]),
+				E('div', { 'style': 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, [
+					E('label', {}, [ _('Context ') , ctx ]),
+					E('label', {}, [ _('Thread ') , th ]),
+					E('label', {}, [ _('Batch ') , tb ]),
+					E('label', {}, [ _('Slot ') , par ]),
+					E('button', { 'class': 'btn cbi-button cbi-button-apply', 'click': saveInf }, [ _('Simpan inference') ])
+				]),
+				E('h3', { 'style': 'margin-top:14px' }, [ _('Setting pencarian') ]),
+				E('div', { 'style': 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, [
+					prov, key,
+					E('button', { 'class': 'btn cbi-button cbi-button-apply', 'click': saveSearch }, [ _('Simpan search') ])
+				]),
+				E('h3', { 'style': 'margin-top:14px' }, [ _('Bearer token') ]),
+				E('div', { 'style': 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, [
+					tok,
+					E('button', { 'class': 'btn cbi-button cbi-button-apply', 'click': saveToken }, [ _('Ganti token') ])
+				]),
+				E('p', { 'class': 'cbi-section-descr' }, [
+					_('Token hanya disimpan di /etc/qiiin-ai/gateway.env (0600). Web AI mengambilnya otomatis dari gateway.')
+				])
+			]);
+		};
+
 		return E('div', {}, [
 			host,
+			settings(),
 			E('div', { 'style': 'display:flex;gap:8px;flex-wrap:wrap;margin:12px 0' }, [
 				btn(_('Start'), [ 'start' ]),
 				btn(_('Stop'), [ 'stop' ], 'cbi-button-negative'),

@@ -1,6 +1,6 @@
 #!/bin/sh
 # qiiin-ai-ctl — allowlisted control helper for the LuCI app.
-# Only fixed subcommands are accepted; no arbitrary shell from the UI.
+# Fixed subcommands only; no arbitrary shell from the UI.
 set -eu
 
 LLAMA=/etc/init.d/qiiin-llama
@@ -14,12 +14,28 @@ kv_get() {
 }
 
 kv_set() {
-	key="$1"; val="$2"; file="$3"
+	key="$1"; val="$2"; file="$3"; mode="${4:-0600}"
 	tmp="${file}.tmp"
 	grep -v "^${key}=" "$file" > "$tmp" || true
 	printf '%s=%s\n' "$key" "$val" >> "$tmp"
 	mv "$tmp" "$file"
-	chmod 0600 "$file"
+	chmod "$mode" "$file"
+}
+
+is_num() {
+	case "$1" in ''|*[!0-9]*) return 1;; esac
+	return 0
+}
+
+mask_token() {
+	t=$(kv_get QIIIN_AUTH_TOKEN "$ENV")
+	n=${#t}
+	if [ "$n" -le 8 ]; then
+		printf '********'
+	else
+		last=$(printf '%s' "$t" | tail -c 5)
+		printf '%s…%s' "$(printf '%s' "$t" | cut -c1-4)" "$last"
+	fi
 }
 
 case "${1:-}" in
@@ -28,8 +44,12 @@ case "${1:-}" in
 		printf 'llama=%s\n' "$(ps 2>/dev/null | grep -c '[l]lama-server')"
 		printf 'gateway=%s\n' "$(ps 2>/dev/null | grep -c '[q]iiin-ai-gateway')"
 		printf 'bind=%s\n' "$(kv_get QIIIN_BIND "$ENV")"
+		printf 'token_mask=%s\n' "$(mask_token)"
+		printf 'search_provider=%s\n' "$(kv_get QIIIN_SEARCH_PROVIDER "$ENV")"
+		printf 'kb_path=%s\n' "$(kv_get QIIIN_KB_PATH "$ENV")"
 		printf 'ctx=%s\n' "$(kv_get QIIIN_CTX "$CONF")"
 		printf 'threads=%s\n' "$(kv_get QIIIN_THREADS "$CONF")"
+		printf 'threads_batch=%s\n' "$(kv_get QIIIN_THREADS_BATCH "$CONF")"
 		printf 'parallel=%s\n' "$(kv_get QIIIN_PARALLEL "$CONF")"
 		printf 'mem_available_kb=%s\n' "$(awk '/MemAvailable/{print $2}' /proc/meminfo)"
 		printf 'temp=%s\n' "$(/usr/bin/flip3-temp 2>/dev/null | tr -dc '0-9.')"
@@ -56,12 +76,12 @@ case "${1:-}" in
 		"$LLAMA" disable
 		;;
 	expose-lan)
-		kv_set QIIIN_BIND '192.168.44.1:8080' "$ENV"
+		kv_set QIIIN_BIND '192.168.44.1:8080' "$ENV" 0600
 		"$GW" restart
 		printf 'http://192.168.44.1:8080/\n'
 		;;
 	private)
-		kv_set QIIIN_BIND '127.0.0.1:8080' "$ENV"
+		kv_set QIIIN_BIND '127.0.0.1:8080' "$ENV" 0600
 		"$GW" restart
 		;;
 	url)
@@ -70,6 +90,36 @@ case "${1:-}" in
 			127.0.0.1:*) printf 'http://127.0.0.1:%s/\n' "${bind##*:}" ;;
 			*) printf 'http://192.168.44.1:8080/\n' ;;
 		esac
+		;;
+	set-token)
+		t="${2:-}"
+		case "$t" in ''|*[!0-9a-fA-F]*) echo "token tidak valid" >&2; exit 1;; esac
+		[ "${#t}" -ge 16 ] && [ "${#t}" -le 128 ] || { echo "panjang token tidak valid" >&2; exit 1; }
+		kv_set QIIIN_AUTH_TOKEN "$t" "$ENV" 0600
+		"$GW" restart
+		printf 'token tersimpan\n'
+		;;
+	set-search)
+		p="${2:-}"; k="${3:-}"
+		case "$p" in brave|tavily|ddg) ;; *) echo "provider harus brave|tavily|ddg" >&2; exit 1;; esac
+		kv_set QIIIN_SEARCH_PROVIDER "$p" "$ENV" 0600
+		kv_set QIIIN_SEARCH_API_KEY "$k" "$ENV" 0600
+		"$GW" restart
+		printf 'search tersimpan\n'
+		;;
+	set-inference)
+		c="${2:-}"; t="${3:-}"; b="${4:-}"; n="${5:-}"
+		for v in "$c" "$t" "$b" "$n"; do is_num "$v" || { echo "angka tidak valid" >&2; exit 1; }; done
+		[ "$c" -ge 512 ] && [ "$c" -le 16384 ] || exit 1
+		[ "$t" -ge 1 ] && [ "$t" -le 8 ] || exit 1
+		[ "$b" -ge 1 ] && [ "$b" -le 8 ] || exit 1
+		[ "$n" -ge 1 ] && [ "$n" -le 4 ] || exit 1
+		kv_set QIIIN_CTX "$c" "$CONF" 0644
+		kv_set QIIIN_THREADS "$t" "$CONF" 0644
+		kv_set QIIIN_THREADS_BATCH "$b" "$CONF" 0644
+		kv_set QIIIN_PARALLEL "$n" "$CONF" 0644
+		"$LLAMA" restart
+		printf 'inference tersimpan\n'
 		;;
 	*)
 		echo "unknown command: ${1:-}" >&2

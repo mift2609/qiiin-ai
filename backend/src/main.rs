@@ -250,7 +250,7 @@ async fn api_search(
     if p.query.trim().is_empty() || p.query.len() > 512 {
         return api_error(StatusCode::BAD_REQUEST, "query tidak valid", &id);
     }
-    let limit = p.limit.unwrap_or(5).clamp(1, 10);
+    let limit = p.limit.unwrap_or(3).clamp(1, 5);
     match search::run(&state.client, &state.search, &state.search_cache, p.query.trim(), limit).await {
         Ok((items, source)) => Json(serde_json::json!({
             "ok": true, "provider": source, "count": items.len(),

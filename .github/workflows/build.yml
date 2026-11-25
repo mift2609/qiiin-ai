@@ -1,0 +1,39 @@
+name: build-musl
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust musl target
+        run: rustup target add aarch64-unknown-linux-musl
+
+      - name: Install aarch64 musl cross compiler
+        run: |
+          set -eu
+          mkdir -p "$HOME/toolchains"
+          curl -fsSL https://musl.cc/aarch64-linux-musl-cross.tgz | tar -xz -C "$HOME/toolchains"
+          echo "CROSS_CC=$HOME/toolchains/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc" >> "$GITHUB_ENV"
+          "$HOME/toolchains/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc" --version | head -1
+
+      - name: Build static binaries
+        run: |
+          chmod +x scripts/build-musl.sh
+          ./scripts/build-musl.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qiiin-ai-aarch64-musl
+          path: artifacts/
+          retention-days: 30
+          if-no-files-found: error

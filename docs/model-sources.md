@@ -5,9 +5,11 @@ Model dan bobot tidak disimpan di repo. Unduh di laptop, verifikasi, baru kirim 
 ## Primary
 
 - Repo: `bartowski/Qwen_Qwen3-4B-GGUF`
-- File: `Qwen3-4B-Q4_K_M.gguf`
-- Ukuran: **2,50 GB**
-- URL: `https://huggingface.co/bartowski/Qwen_Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf`
+- File di repo: `Qwen_Qwen3-4B-Q4_K_M.gguf`
+- Ukuran: 2.497.280.960 byte (~2,50 GB)
+- SHA256: `fbe1d5edd4ce802ae3ae7c7e4ab7d09789d697fdac1fc7929f8df4ca3c41bae3`
+- URL: `https://huggingface.co/bartowski/Qwen_Qwen3-4B-GGUF/resolve/main/Qwen_Qwen3-4B-Q4_K_M.gguf`
+- Nama di device: `Qwen3-4B-Q4_K_M.gguf`
 
 ## Fallback
 

@@ -1,0 +1,78 @@
+#!/bin/sh
+# qiiin-ai-ctl — allowlisted control helper for the LuCI app.
+# Only fixed subcommands are accepted; no arbitrary shell from the UI.
+set -eu
+
+LLAMA=/etc/init.d/qiiin-llama
+GW=/etc/init.d/qiiin-gateway
+CONF=/etc/qiiin-ai/qiiin-ai.conf
+ENV=/etc/qiiin-ai/gateway.env
+MODEL=/opt/qiiin-ai/models/Qwen3-4B-Q4_K_M.gguf
+
+kv_get() {
+	grep -E "^$1=" "$2" 2>/dev/null | head -1 | cut -d= -f2- || true
+}
+
+kv_set() {
+	key="$1"; val="$2"; file="$3"
+	tmp="${file}.tmp"
+	grep -v "^${key}=" "$file" > "$tmp" || true
+	printf '%s=%s\n' "$key" "$val" >> "$tmp"
+	mv "$tmp" "$file"
+	chmod 0600 "$file"
+}
+
+case "${1:-}" in
+	status)
+		printf 'model=%s\n' "$([ -f "$MODEL" ] && echo yes || echo no)"
+		printf 'llama=%s\n' "$(ps 2>/dev/null | grep -c '[l]lama-server')"
+		printf 'gateway=%s\n' "$(ps 2>/dev/null | grep -c '[q]iiin-ai-gateway')"
+		printf 'bind=%s\n' "$(kv_get QIIIN_BIND "$ENV")"
+		printf 'ctx=%s\n' "$(kv_get QIIIN_CTX "$CONF")"
+		printf 'threads=%s\n' "$(kv_get QIIIN_THREADS "$CONF")"
+		printf 'parallel=%s\n' "$(kv_get QIIIN_PARALLEL "$CONF")"
+		printf 'mem_available_kb=%s\n' "$(awk '/MemAvailable/{print $2}' /proc/meminfo)"
+		printf 'temp=%s\n' "$(/usr/bin/flip3-temp 2>/dev/null | tr -dc '0-9.')"
+		;;
+	start)
+		"$LLAMA" start
+		"$GW" start
+		;;
+	stop)
+		"$GW" stop
+		"$LLAMA" stop
+		;;
+	restart)
+		"$GW" stop || true
+		"$LLAMA" restart
+		"$GW" start
+		;;
+	enable)
+		"$LLAMA" enable
+		"$GW" enable
+		;;
+	disable)
+		"$GW" disable
+		"$LLAMA" disable
+		;;
+	expose-lan)
+		kv_set QIIIN_BIND '0.0.0.0:8080' "$ENV"
+		"$GW" restart
+		printf 'http://192.168.44.1:8080/\n'
+		;;
+	private)
+		kv_set QIIIN_BIND '127.0.0.1:8080' "$ENV"
+		"$GW" restart
+		;;
+	url)
+		bind=$(kv_get QIIIN_BIND "$ENV")
+		case "$bind" in
+			127.0.0.1:*) printf 'http://127.0.0.1:%s/\n' "${bind##*:}" ;;
+			*) printf 'http://192.168.44.1:8080/\n' ;;
+		esac
+		;;
+	*)
+		echo "unknown command: ${1:-}" >&2
+		exit 1
+		;;
+esac

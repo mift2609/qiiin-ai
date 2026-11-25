@@ -5,7 +5,7 @@
 use axum::{
     body::Body,
     extract::{Request, State},
-    http::{header, StatusCode},
+    http::{header, StatusCode, Uri},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -29,6 +29,7 @@ struct AppState {
     token: String,
     llama_base: String,
     status_file: String,
+    www_dir: String,
     rate: Arc<Mutex<HashMap<String, (u64, u32)>>>,
     counter: Arc<AtomicU64>,
 }
@@ -196,6 +197,32 @@ async fn system_status(State(state): State<AppState>, req: Request) -> Response 
     }
 }
 
+fn content_type(path: &str) -> &'static str {
+    if path.ends_with(".html") { "text/html; charset=utf-8" }
+    else if path.ends_with(".js") { "text/javascript; charset=utf-8" }
+    else if path.ends_with(".css") { "text/css; charset=utf-8" }
+    else if path.ends_with(".json") { "application/json" }
+    else if path.ends_with(".svg") { "image/svg+xml" }
+    else if path.ends_with(".png") { "image/png" }
+    else { "application/octet-stream" }
+}
+
+/// Serves the static UI. No auth here; API endpoints keep their bearer token.
+async fn static_ui(State(state): State<AppState>, uri: Uri) -> Response {
+    let mut rel = uri.path().trim_start_matches('/').to_string();
+    if rel.is_empty() {
+        rel = "index.html".to_string();
+    }
+    if rel.contains("..") || rel.starts_with('/') {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    let full = std::path::Path::new(&state.www_dir).join(&rel);
+    match std::fs::read(&full) {
+        Ok(bytes) => (StatusCode::OK, [(header::CONTENT_TYPE, content_type(&rel))], bytes).into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let bind = std::env::var("QIIIN_BIND").unwrap_or_else(|_| "127.0.0.1:8080".into());
@@ -204,6 +231,8 @@ async fn main() {
         .unwrap_or_else(|_| "http://127.0.0.1:8081".into());
     let status_file = std::env::var("QIIIN_STATUS_FILE")
         .unwrap_or_else(|_| "/var/run/qiiin-ai/system.json".into());
+    let www_dir = std::env::var("QIIIN_WWW_DIR")
+        .unwrap_or_else(|_| "/opt/qiiin-ai/www".into());
 
     if token.is_empty() {
         eprintln!("WARNING: QIIIN_AUTH_TOKEN is empty; /v1/* endpoints will return 503");
@@ -217,6 +246,7 @@ async fn main() {
         token,
         llama_base,
         status_file,
+        www_dir,
         rate: Arc::new(Mutex::new(HashMap::new())),
         counter: Arc::new(AtomicU64::new(1)),
     };
@@ -226,6 +256,7 @@ async fn main() {
         .route("/v1/models", get(models))
         .route("/v1/chat/completions", post(chat))
         .route("/v1/system/status", get(system_status))
+        .fallback(get(static_ui))
         .with_state(state);
 
     let addr: std::net::SocketAddr = bind.parse().expect("invalid QIIIN_BIND address");

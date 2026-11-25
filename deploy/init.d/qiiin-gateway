@@ -24,6 +24,7 @@ start_service() {
 		QIIIN_BIND="${QIIIN_BIND:-127.0.0.1:8080}" \
 		QIIIN_LLAMA_BASE="${QIIIN_LLAMA_BASE:-http://127.0.0.1:8081}" \
 		QIIIN_STATUS_FILE="${QIIIN_STATUS_FILE:-/var/run/qiiin-ai/system.json}" \
+		QIIIN_WWW_DIR="${QIIIN_WWW_DIR:-/opt/qiiin-ai/www}" \
 		QIIIN_AUTH_TOKEN="$QIIIN_AUTH_TOKEN"
 	procd_set_param respawn 3600 5 5
 	procd_set_param stdout 1

@@ -76,7 +76,7 @@ case "${1:-}" in
 		"$LLAMA" disable
 		;;
 	expose-lan)
-		kv_set QIIIN_BIND '192.168.44.1:8080' "$ENV" 0600
+		kv_set QIIIN_BIND '192.168.44.1:8080,192.168.45.1:8080' "$ENV" 0600
 		"$GW" restart
 		printf 'http://192.168.44.1:8080/\n'
 		;;
@@ -90,6 +90,9 @@ case "${1:-}" in
 			127.0.0.1:*) printf 'http://127.0.0.1:%s/\n' "${bind##*:}" ;;
 			*) printf 'http://192.168.44.1:8080/\n' ;;
 		esac
+		;;
+	url-ap)
+		printf 'http://192.168.45.1:8080/\n'
 		;;
 	set-token)
 		t="${2:-}"

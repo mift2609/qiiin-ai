@@ -164,12 +164,18 @@ return view.extend({
 				E('button', { 'class': 'btn cbi-button cbi-button-action', 'click': function(ev) {
 					ev.preventDefault();
 					return openUI();
-				} }, [ _('Buka Web AI') ])
+				} }, [ _('Buka Web AI') ]),
+				E('button', { 'class': 'btn cbi-button cbi-button-action', 'click': function(ev) {
+					ev.preventDefault();
+					return fs.exec(CTL, [ 'url-ap' ]).then(function(r) {
+						window.open((r && r.stdout || '').trim(), '_blank');
+					});
+				} }, [ _('Buka Web AI (HP/AP)') ])
 			]),
 			urlLine,
 			note,
 			E('p', { 'class': 'cbi-section-descr' }, [
-				_('Membuka akses LAN hanya mengubah bind gateway menjadi 192.168.44.1:8080 (USB), bukan 0.0.0.0. Firewall tidak diubah; llama-server tetap 127.0.0.1:8081.')
+				_('Membuka akses LAN mengikat gateway ke 192.168.44.1:8080 (USB) dan 192.168.45.1:8080 (WiFi HP). Firewall tidak diubah; llama-server tetap 127.0.0.1:8081.')
 			]),
 			E('button', { 'class': 'btn cbi-button', 'click': function(ev) { ev.preventDefault(); return refresh(); } }, [ _('Refresh') ])
 		]);

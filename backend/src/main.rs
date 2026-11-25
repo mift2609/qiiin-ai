@@ -398,10 +398,23 @@ async fn main() {
         .fallback(get(static_ui))
         .with_state(state);
 
-    let addr: std::net::SocketAddr = bind.parse().expect("invalid QIIIN_BIND address");
-    eprintln!("qiiin-ai-gateway {VERSION} listening on {addr}");
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .expect("failed to bind");
-    axum::serve(listener, app).await.expect("server failed");
+    let addrs: Vec<std::net::SocketAddr> = bind.split(',')
+        .filter_map(|s| s.trim().parse().ok())
+        .collect();
+    if addrs.is_empty() { panic!("invalid QIIIN_BIND address"); }
+
+    let mut listeners = Vec::new();
+    for addr in &addrs {
+        eprintln!("qiiin-ai-gateway {VERSION} listening on {addr}");
+        listeners.push(tokio::net::TcpListener::bind(addr).await.expect("failed to bind"));
+    }
+    for listener in listeners {
+        let app = app.clone();
+        tokio::spawn(async move {
+            if let Err(e) = axum::serve(listener, app).await {
+                eprintln!("server failed: {e}");
+            }
+        });
+    }
+    tokio::signal::ctrl_c().await.expect("signal handler failed");
 }

@@ -35,6 +35,8 @@ textarea { width: 100%; resize: vertical; }
 .row { display: flex; gap: 8px; margin-top: 8px; }
 .row input { flex: 1; min-width: 120px; }
 button { background: var(--accent); color: #0a1712; border: 0; font-weight: 700; cursor: pointer; padding-inline: 18px; }
+.think { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.think input { accent-color: var(--accent); }
 button:disabled { opacity: .5; cursor: wait; }
 @media (max-width: 560px) {
   .row { flex-wrap: wrap; }

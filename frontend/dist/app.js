@@ -1,6 +1,6 @@
 const $ = (s) => document.querySelector(s);
 const chat = $('#chat'), input = $('#input'), form = $('#form');
-const token = $('#token'), modeSel = $('#modeSel');
+const token = $('#token'), modeSel = $('#modeSel'), think = $('#think');
 const dot = $('#dot'), connText = $('#connText'), statusEl = $('#status'), latencyEl = $('#latency');
 let history = [];
 let base = ''; // same-origin by default; set QIIIN_API_BASE to override
@@ -52,10 +52,11 @@ form.addEventListener('submit', async (ev) => {
         'Authorization': 'Bearer ' + token.value
       },
       body: JSON.stringify({
-        model: 'qwen3-4b',
+        model: '/opt/qiiin-ai/models/Qwen3-4B-Q4_K_M.gguf',
         messages: history.slice(-12),
         stream: true,
-        max_tokens: 512
+        max_tokens: 512,
+        chat_template_kwargs: { enable_thinking: think.checked }
       })
     });
     if (!r.ok) {

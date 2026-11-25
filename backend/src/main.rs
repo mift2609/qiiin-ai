@@ -3,7 +3,7 @@
 //! Inference is delegated to a local llama-server; no raw model access is exposed.
 
 use axum::{
-    body::{Body, Bytes},
+    body::Body,
     extract::{Request, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
@@ -136,11 +136,15 @@ async fn models(State(state): State<AppState>, req: Request) -> Response {
     }
 }
 
-async fn chat(State(state): State<AppState>, req: Request, body: Bytes) -> Response {
+async fn chat(State(state): State<AppState>, req: Request) -> Response {
     let id = request_id(&state);
     if let Err((status, msg)) = authorize(&state, &req) {
         return api_error(status, &msg, &id);
     }
+    let body = match axum::body::to_bytes(req.into_body(), MAX_BODY).await {
+        Ok(bytes) => bytes,
+        Err(_) => return api_error(StatusCode::PAYLOAD_TOO_LARGE, "request body too large or unreadable", &id),
+    };
     if body.len() > MAX_BODY {
         return api_error(StatusCode::PAYLOAD_TOO_LARGE, "request body too large", &id);
     }
@@ -160,7 +164,7 @@ async fn chat(State(state): State<AppState>, req: Request, body: Bytes) -> Respo
             Response::builder()
                 .status(code)
                 .header(header::CONTENT_TYPE, "text/event-stream")
-                .header("x-request-id", id)
+                .header("x-request-id", id.as_str())
                 .body(Body::from_stream(stream))
                 .unwrap_or_else(|_| api_error(StatusCode::INTERNAL_SERVER_ERROR, "stream build failed", &id))
         }

@@ -5,12 +5,12 @@
 use axum::{
     body::Body,
     extract::{Request, State},
-    http::{header, StatusCode, Uri},
+    http::{header, HeaderMap, StatusCode, Uri},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     sync::{
@@ -23,6 +23,10 @@ use std::{
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const MAX_BODY: usize = 1024 * 1024; // 1 MiB request cap
 
+mod knowledge;
+mod search;
+mod webreader;
+
 #[derive(Clone)]
 struct AppState {
     client: reqwest::Client,
@@ -30,6 +34,9 @@ struct AppState {
     llama_base: String,
     status_file: String,
     www_dir: String,
+    search: search::SearchConfig,
+    search_cache: Arc<Mutex<search::SearchCache>>,
+    kb: Arc<Mutex<knowledge::Knowledge>>,
     rate: Arc<Mutex<HashMap<String, (u64, u32)>>>,
     counter: Arc<AtomicU64>,
 }
@@ -91,6 +98,28 @@ fn authorize(state: &AppState, req: &Request) -> Result<(), (StatusCode, String)
         return Err((StatusCode::UNAUTHORIZED, "invalid or missing bearer token".into()));
     }
 
+    let mut table = state.rate.lock().unwrap();
+    let (window, hits) = table.entry("default".to_string()).or_insert((now_secs(), 0));
+    if now_secs().saturating_sub(*window) >= 60 {
+        *window = now_secs();
+        *hits = 0;
+    }
+    *hits += 1;
+    if *hits > 60 {
+        return Err((StatusCode::TOO_MANY_REQUESTS, "rate limit exceeded".into()));
+    }
+    Ok(())
+}
+
+fn authorize_headers(state: &AppState, headers: &HeaderMap) -> Result<(), (StatusCode, String)> {
+    if state.token.is_empty() {
+        return Err((StatusCode::SERVICE_UNAVAILABLE, "auth token not configured".into()));
+    }
+    let supplied = headers.get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok()).unwrap_or("");
+    if supplied != format!("Bearer {}", state.token) {
+        return Err((StatusCode::UNAUTHORIZED, "invalid or missing bearer token".into()));
+    }
     let mut table = state.rate.lock().unwrap();
     let (window, hits) = table.entry("default".to_string()).or_insert((now_secs(), 0));
     if now_secs().saturating_sub(*window) >= 60 {
@@ -197,6 +226,90 @@ async fn system_status(State(state): State<AppState>, req: Request) -> Response 
     }
 }
 
+#[derive(Deserialize)]
+struct SearchPayload { query: String, limit: Option<usize> }
+
+#[derive(Deserialize)]
+struct ReadPayload { url: String }
+
+#[derive(Deserialize)]
+struct KnowledgeSearchPayload { query: String, limit: Option<usize> }
+
+#[derive(Deserialize)]
+struct KnowledgeAddPayload { title: String, url: String, content: String }
+
+async fn api_search(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(p): Json<SearchPayload>,
+) -> Response {
+    let id = request_id(&state);
+    if let Err((status, msg)) = authorize_headers(&state, &headers) {
+        return api_error(status, &msg, &id);
+    }
+    if p.query.trim().is_empty() || p.query.len() > 512 {
+        return api_error(StatusCode::BAD_REQUEST, "query tidak valid", &id);
+    }
+    let limit = p.limit.unwrap_or(5).clamp(1, 10);
+    match search::run(&state.client, &state.search, &state.search_cache, p.query.trim(), limit).await {
+        Ok((items, source)) => Json(serde_json::json!({
+            "ok": true, "provider": source, "count": items.len(),
+            "results": items, "request_id": id
+        })).into_response(),
+        Err(e) => api_error(StatusCode::SERVICE_UNAVAILABLE, &e, &id),
+    }
+}
+
+async fn api_web_read(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(p): Json<ReadPayload>,
+) -> Response {
+    let id = request_id(&state);
+    if let Err((status, msg)) = authorize_headers(&state, &headers) {
+        return api_error(status, &msg, &id);
+    }
+    match webreader::read(&state.client, &p.url).await {
+        Ok(r) => Json(serde_json::json!({ "ok": true, "result": r, "request_id": id })).into_response(),
+        Err(e) => api_error(StatusCode::BAD_REQUEST, &e, &id),
+    }
+}
+
+async fn api_knowledge_search(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(p): Json<KnowledgeSearchPayload>,
+) -> Response {
+    let id = request_id(&state);
+    if let Err((status, msg)) = authorize_headers(&state, &headers) {
+        return api_error(status, &msg, &id);
+    }
+    let limit = p.limit.unwrap_or(5).clamp(1, 20);
+    let conn = state.kb.lock().unwrap();
+    match conn.search(&p.query, limit) {
+        Ok(items) => Json(serde_json::json!({
+            "ok": true, "count": items.len(), "results": items, "request_id": id
+        })).into_response(),
+        Err(e) => api_error(StatusCode::BAD_REQUEST, &e, &id),
+    }
+}
+
+async fn api_knowledge_add(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(p): Json<KnowledgeAddPayload>,
+) -> Response {
+    let id = request_id(&state);
+    if let Err((status, msg)) = authorize_headers(&state, &headers) {
+        return api_error(status, &msg, &id);
+    }
+    let mut conn = state.kb.lock().unwrap();
+    match conn.add(&p.title, &p.url, &p.content, &now_secs().to_string()) {
+        Ok(n) => Json(serde_json::json!({ "ok": true, "inserted": n, "request_id": id })).into_response(),
+        Err(e) => api_error(StatusCode::BAD_REQUEST, &e, &id),
+    }
+}
+
 fn content_type(path: &str) -> &'static str {
     if path.ends_with(".html") { "text/html; charset=utf-8" }
     else if path.ends_with(".js") { "text/javascript; charset=utf-8" }
@@ -241,6 +354,17 @@ async fn main() {
         .unwrap_or_else(|_| "/var/run/qiiin-ai/system.json".into());
     let www_dir = std::env::var("QIIIN_WWW_DIR")
         .unwrap_or_else(|_| "/opt/qiiin-ai/www".into());
+    let search_cfg = search::SearchConfig {
+        provider: std::env::var("QIIIN_SEARCH_PROVIDER").unwrap_or_default(),
+        api_key: std::env::var("QIIIN_SEARCH_API_KEY").unwrap_or_default(),
+        timeout: Duration::from_secs(15),
+    };
+    let kb_path = std::env::var("QIIIN_KB_PATH")
+        .unwrap_or_else(|_| "/opt/qiiin-ai/knowledge.db".into());
+    if let Some(parent) = std::path::Path::new(&kb_path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let kb = Arc::new(Mutex::new(knowledge::open(&kb_path)));
 
     if token.is_empty() {
         eprintln!("WARNING: QIIIN_AUTH_TOKEN is empty; /v1/* endpoints will return 503");
@@ -255,6 +379,9 @@ async fn main() {
         llama_base,
         status_file,
         www_dir,
+        search: search_cfg,
+        search_cache: Arc::new(Mutex::new(search::SearchCache::default())),
+        kb,
         rate: Arc::new(Mutex::new(HashMap::new())),
         counter: Arc::new(AtomicU64::new(1)),
     };
@@ -264,6 +391,10 @@ async fn main() {
         .route("/v1/models", get(models))
         .route("/v1/chat/completions", post(chat))
         .route("/v1/system/status", get(system_status))
+        .route("/v1/search", post(api_search))
+        .route("/v1/web/read", post(api_web_read))
+        .route("/v1/knowledge/search", post(api_knowledge_search))
+        .route("/v1/knowledge/add", post(api_knowledge_add))
         .fallback(get(static_ui))
         .with_state(state);
 
